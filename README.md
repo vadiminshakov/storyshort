@@ -6,11 +6,20 @@ A simple GUI application for recording audio and generating AI-powered meeting s
 
 ### Quick Install (Recommended)
 
-Run the installer script to automatically download and install the latest release:
-
+**Linux/macOS:**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vadiminshakov/storyshort/main/install.sh | bash
 ```
+
+**Windows:**
+```powershell
+iwr -useb https://raw.githubusercontent.com/vadiminshakov/storyshort/main/install.ps1 | iex
+```
+
+This will automatically:
+- Detect your OS and architecture
+- Download the appropriate binary from the latest GitHub release
+- Install it to your system PATH
 
 ### Manual Installation
 
