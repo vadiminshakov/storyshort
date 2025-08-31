@@ -65,6 +65,12 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross
         sudo apt-get install -y libgl1-mesa-dev xorg-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+        # Install ARM64 cross-compilation libraries
+        if [ "${{ matrix.goarch }}" = "arm64" ]; then
+          sudo apt-get install -y libgl1-mesa-dev:arm64 libx11-dev:arm64 libxrandr-dev:arm64 libxinerama-dev:arm64 libxcursor-dev:arm64 libxi-dev:arm64
+          sudo dpkg --add-architecture arm64
+          sudo apt-get update
+        fi
 
     - name: Install macOS dependencies
       if: matrix.os == 'macos-latest'
@@ -102,6 +108,7 @@ jobs:
 
     - name: Build binary (Windows)
       if: matrix.os == 'windows-latest'
+      shell: pwsh
       run: |
         go build -ldflags="-s -w" -o storyshort${{ matrix.binary_extension }}
 
