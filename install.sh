@@ -4,7 +4,17 @@ set -e
 
 REPO="vadiminshakov/storyshort"
 BINARY_NAME="storyshort"
-INSTALL_DIR="/usr/local/bin"
+
+# Try to use user's local bin directory first
+if [ -d "$HOME/.local/bin" ]; then
+    INSTALL_DIR="$HOME/.local/bin"
+elif [ -d "$HOME/bin" ]; then
+    INSTALL_DIR="$HOME/bin"
+else
+    # Create ~/.local/bin if it doesn't exist
+    INSTALL_DIR="$HOME/.local/bin"
+    mkdir -p "$INSTALL_DIR"
+fi
 
 detect_os_arch() {
     OS=$(uname -s | tr '[:upper:]' '[:lower:]')
@@ -96,10 +106,32 @@ download_and_install() {
     
     echo "Installing to $INSTALL_DIR/$BINARY_NAME"
     
-    if [ "$EUID" -ne 0 ]; then
-        sudo mv "$BINARY_NAME" "$INSTALL_DIR/"
-    else
-        mv "$BINARY_NAME" "$INSTALL_DIR/"
+    mv "$BINARY_NAME" "$INSTALL_DIR/"
+    
+    # Add to PATH if not already there
+    if ! echo "$PATH" | grep -q "$INSTALL_DIR"; then
+        echo "Adding $INSTALL_DIR to PATH..."
+        
+        # Detect shell and update appropriate config file
+        SHELL_NAME=$(basename "$SHELL")
+        case $SHELL_NAME in
+            bash)
+                echo "export PATH=\"\$PATH:$INSTALL_DIR\"" >> "$HOME/.bashrc"
+                echo "Added to ~/.bashrc - restart terminal or run: source ~/.bashrc"
+                ;;
+            zsh)
+                echo "export PATH=\"\$PATH:$INSTALL_DIR\"" >> "$HOME/.zshrc"
+                echo "Added to ~/.zshrc - restart terminal or run: source ~/.zshrc"
+                ;;
+            fish)
+                echo "set -U fish_user_paths $INSTALL_DIR \$fish_user_paths" >> "$HOME/.config/fish/config.fish"
+                echo "Added to fish config - restart terminal"
+                ;;
+            *)
+                echo "export PATH=\"\$PATH:$INSTALL_DIR\"" >> "$HOME/.profile"
+                echo "Added to ~/.profile - restart terminal or run: source ~/.profile"
+                ;;
+        esac
     fi
     
     cd - > /dev/null
