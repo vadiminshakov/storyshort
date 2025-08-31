@@ -1,0 +1,118 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [ created ]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            artifact_name: storyshort-linux-amd64
+            binary_extension: ""
+          - os: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            artifact_name: storyshort-linux-arm64
+            binary_extension: ""
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            artifact_name: storyshort-windows-amd64
+            binary_extension: .exe
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+            artifact_name: storyshort-macos-amd64
+            binary_extension: ""
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            artifact_name: storyshort-macos-arm64
+            binary_extension: ""
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23'
+
+    - name: Install fyne CLI
+      run: go install fyne.io/tools/cmd/fyne@latest
+
+    - name: Generate icon resource
+      run: fyne bundle -o icon.go assets/icon.svg
+
+    - name: Install Linux dependencies
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+        sudo apt-get install -y libgl1-mesa-dev xorg-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+
+    - name: Install macOS dependencies
+      if: matrix.os == 'macos-latest'
+      run: |
+        # Устанавливаем Xcode command line tools если нужно
+        xcode-select --install 2>/dev/null || true
+
+    - name: Set CGO environment for cross-compilation
+      run: |
+        if [ "${{ matrix.goos }}" = "linux" ] && [ "${{ matrix.goarch }}" = "arm64" ]; then
+          echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+          echo "CGO_ENABLED=1" >> $GITHUB_ENV
+        elif [ "${{ matrix.goos }}" = "windows" ]; then
+          echo "CGO_ENABLED=1" >> $GITHUB_ENV
+        else
+          echo "CGO_ENABLED=1" >> $GITHUB_ENV
+        fi
+        echo "GOOS=${{ matrix.goos }}" >> $GITHUB_ENV
+        echo "GOARCH=${{ matrix.goarch }}" >> $GITHUB_ENV
+
+    - name: Build for macOS (suppress duplicate library warnings)
+      if: matrix.os == 'macos-latest'
+      run: |
+        export CGO_LDFLAGS="-Wl,-no_warn_duplicate_libraries"
+        go build -ldflags="-s -w" -o ${{ matrix.artifact_name }}${{ matrix.binary_extension }}
+
+    - name: Build for Linux/Windows
+      if: matrix.os != 'macos-latest'
+      run: |
+        go build -ldflags="-s -w" -o ${{ matrix.artifact_name }}${{ matrix.binary_extension }}
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact_name }}
+        path: ${{ matrix.artifact_name }}${{ matrix.binary_extension }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+
+    - name: Upload release assets
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          storyshort-linux-amd64/storyshort-linux-amd64
+          storyshort-linux-arm64/storyshort-linux-arm64
+          storyshort-windows-amd64/storyshort-windows-amd64.exe
+          storyshort-macos-amd64/storyshort-macos-amd64
+          storyshort-macos-arm64/storyshort-macos-arm64
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
