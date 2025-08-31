@@ -17,27 +17,32 @@ jobs:
           - os: ubuntu-latest
             goos: linux
             goarch: amd64
-            artifact_name: storyshort-linux-amd64
+            artifact_name: storyshort_linux_amd64
+            archive_ext: .tar.gz
             binary_extension: ""
           - os: ubuntu-latest
             goos: linux
             goarch: arm64
-            artifact_name: storyshort-linux-arm64
+            artifact_name: storyshort_linux_arm64
+            archive_ext: .tar.gz
             binary_extension: ""
           - os: windows-latest
             goos: windows
             goarch: amd64
-            artifact_name: storyshort-windows-amd64
+            artifact_name: storyshort_windows_amd64
+            archive_ext: .zip
             binary_extension: .exe
           - os: macos-latest
             goos: darwin
             goarch: amd64
-            artifact_name: storyshort-macos-amd64
+            artifact_name: storyshort_darwin_amd64
+            archive_ext: .tar.gz
             binary_extension: ""
           - os: macos-latest
             goos: darwin
             goarch: arm64
-            artifact_name: storyshort-macos-arm64
+            artifact_name: storyshort_darwin_arm64
+            archive_ext: .tar.gz
             binary_extension: ""
 
     steps:
@@ -80,22 +85,27 @@ jobs:
         echo "GOOS=${{ matrix.goos }}" >> $GITHUB_ENV
         echo "GOARCH=${{ matrix.goarch }}" >> $GITHUB_ENV
 
-    - name: Build for macOS (suppress duplicate library warnings)
-      if: matrix.os == 'macos-latest'
+    - name: Build binary
       run: |
-        export CGO_LDFLAGS="-Wl,-no_warn_duplicate_libraries"
-        go build -ldflags="-s -w" -o ${{ matrix.artifact_name }}${{ matrix.binary_extension }}
+        if [ "${{ matrix.os }}" = "macos-latest" ]; then
+          export CGO_LDFLAGS="-Wl,-no_warn_duplicate_libraries"
+        fi
+        go build -ldflags="-s -w" -o storyshort${{ matrix.binary_extension }}
 
-    - name: Build for Linux/Windows
-      if: matrix.os != 'macos-latest'
+    - name: Create archive
       run: |
-        go build -ldflags="-s -w" -o ${{ matrix.artifact_name }}${{ matrix.binary_extension }}
+        if [ "${{ matrix.archive_ext }}" = ".tar.gz" ]; then
+          tar -czf ${{ matrix.artifact_name }}${{ matrix.archive_ext }} storyshort${{ matrix.binary_extension }}
+        else
+          # Windows zip
+          zip ${{ matrix.artifact_name }}${{ matrix.archive_ext }} storyshort${{ matrix.binary_extension }}
+        fi
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.artifact_name }}
-        path: ${{ matrix.artifact_name }}${{ matrix.binary_extension }}
+        path: ${{ matrix.artifact_name }}${{ matrix.archive_ext }}
 
   release:
     needs: build
@@ -109,10 +119,10 @@ jobs:
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          storyshort-linux-amd64/storyshort-linux-amd64
-          storyshort-linux-arm64/storyshort-linux-arm64
-          storyshort-windows-amd64/storyshort-windows-amd64.exe
-          storyshort-macos-amd64/storyshort-macos-amd64
-          storyshort-macos-arm64/storyshort-macos-arm64
+          storyshort_linux_amd64/storyshort_linux_amd64.tar.gz
+          storyshort_linux_arm64/storyshort_linux_arm64.tar.gz
+          storyshort_windows_amd64/storyshort_windows_amd64.zip
+          storyshort_darwin_amd64/storyshort_darwin_amd64.tar.gz
+          storyshort_darwin_arm64/storyshort_darwin_arm64.tar.gz
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
