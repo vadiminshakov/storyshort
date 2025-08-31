@@ -5,16 +5,26 @@ set -e
 REPO="vadiminshakov/storyshort"
 BINARY_NAME="storyshort"
 
-# Try to use user's local bin directory first
-if [ -d "$HOME/.local/bin" ]; then
-    INSTALL_DIR="$HOME/.local/bin"
-elif [ -d "$HOME/bin" ]; then
-    INSTALL_DIR="$HOME/bin"
-else
-    # Create ~/.local/bin if it doesn't exist
-    INSTALL_DIR="$HOME/.local/bin"
-    mkdir -p "$INSTALL_DIR"
-fi
+# Set install directory based on OS
+case "$(uname -s)" in
+    Darwin)
+        # macOS - create app bundle in user Applications
+        INSTALL_DIR="$HOME/Applications"
+        APP_BUNDLE="StoryShort.app"
+        mkdir -p "$INSTALL_DIR"
+        ;;
+    *)
+        # Linux and others - use local bin
+        if [ -d "$HOME/.local/bin" ]; then
+            INSTALL_DIR="$HOME/.local/bin"
+        elif [ -d "$HOME/bin" ]; then
+            INSTALL_DIR="$HOME/bin"
+        else
+            INSTALL_DIR="$HOME/.local/bin"
+            mkdir -p "$INSTALL_DIR"
+        fi
+        ;;
+esac
 
 detect_os_arch() {
     OS=$(uname -s | tr '[:upper:]' '[:lower:]')
@@ -104,41 +114,84 @@ download_and_install() {
     
     chmod +x "$BINARY_NAME"
     
-    echo "Installing to $INSTALL_DIR/$BINARY_NAME"
-    
-    mv "$BINARY_NAME" "$INSTALL_DIR/"
-    
-    # Add to PATH if not already there
-    if ! echo "$PATH" | grep -q "$INSTALL_DIR"; then
-        echo "Adding $INSTALL_DIR to PATH..."
+    if [ "$(uname -s)" = "Darwin" ]; then
+        # macOS - create app bundle
+        echo "Creating macOS app bundle..."
+        APP_PATH="$INSTALL_DIR/$APP_BUNDLE"
         
-        # Detect shell and update appropriate config file
-        SHELL_NAME=$(basename "$SHELL")
-        case $SHELL_NAME in
-            bash)
-                echo "export PATH=\"\$PATH:$INSTALL_DIR\"" >> "$HOME/.bashrc"
-                echo "Added to ~/.bashrc - restart terminal or run: source ~/.bashrc"
-                ;;
-            zsh)
-                echo "export PATH=\"\$PATH:$INSTALL_DIR\"" >> "$HOME/.zshrc"
-                echo "Added to ~/.zshrc - restart terminal or run: source ~/.zshrc"
-                ;;
-            fish)
-                echo "set -U fish_user_paths $INSTALL_DIR \$fish_user_paths" >> "$HOME/.config/fish/config.fish"
-                echo "Added to fish config - restart terminal"
-                ;;
-            *)
-                echo "export PATH=\"\$PATH:$INSTALL_DIR\"" >> "$HOME/.profile"
-                echo "Added to ~/.profile - restart terminal or run: source ~/.profile"
-                ;;
-        esac
+        mkdir -p "$APP_PATH/Contents/MacOS"
+        mkdir -p "$APP_PATH/Contents/Resources"
+        
+        # Move binary to app bundle
+        mv "$BINARY_NAME" "$APP_PATH/Contents/MacOS/"
+        
+        # Create Info.plist
+        cat > "$APP_PATH/Contents/Info.plist" << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key>
+    <string>$BINARY_NAME</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.vadiminshakov.storyshort</string>
+    <key>CFBundleName</key>
+    <string>StoryShort</string>
+    <key>CFBundleVersion</key>
+    <string>1.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>10.15</string>
+</dict>
+</plist>
+EOF
+        
+        echo "Installed to $APP_PATH"
+        echo "You can now find StoryShort in your Applications folder"
+        
+    else
+        # Linux - install to bin directory
+        echo "Installing to $INSTALL_DIR/$BINARY_NAME"
+        mv "$BINARY_NAME" "$INSTALL_DIR/"
+        
+        # Add to PATH if not already there
+        if ! echo "$PATH" | grep -q "$INSTALL_DIR"; then
+            echo "Adding $INSTALL_DIR to PATH..."
+            
+            # Detect shell and update appropriate config file
+            SHELL_NAME=$(basename "$SHELL")
+            case $SHELL_NAME in
+                bash)
+                    echo "export PATH=\"\$PATH:$INSTALL_DIR\"" >> "$HOME/.bashrc"
+                    echo "Added to ~/.bashrc - restart terminal or run: source ~/.bashrc"
+                    ;;
+                zsh)
+                    echo "export PATH=\"\$PATH:$INSTALL_DIR\"" >> "$HOME/.zshrc"
+                    echo "Added to ~/.zshrc - restart terminal or run: source ~/.zshrc"
+                    ;;
+                fish)
+                    echo "set -U fish_user_paths $INSTALL_DIR \$fish_user_paths" >> "$HOME/.config/fish/config.fish"
+                    echo "Added to fish config - restart terminal"
+                    ;;
+                *)
+                    echo "export PATH=\"\$PATH:$INSTALL_DIR\"" >> "$HOME/.profile"
+                    echo "Added to ~/.profile - restart terminal or run: source ~/.profile"
+                    ;;
+            esac
+        fi
+        
+        echo "Run '$BINARY_NAME' to start the application"
     fi
     
     cd - > /dev/null
     rm -rf "$TMP_DIR"
     
     echo "Installation completed!"
-    echo "Run '$BINARY_NAME' to start the application"
 }
 
 check_dependencies() {
