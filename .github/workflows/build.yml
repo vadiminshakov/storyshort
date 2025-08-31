@@ -89,11 +89,20 @@ jobs:
         echo "GOOS=${{ matrix.goos }}" | Out-File -FilePath $env:GITHUB_ENV -Append
         echo "GOARCH=${{ matrix.goarch }}" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-    - name: Build binary
+    - name: Build binary (macOS)
+      if: matrix.os == 'macos-latest'
       run: |
-        if [ "${{ matrix.os }}" = "macos-latest" ]; then
-          export CGO_LDFLAGS="-Wl,-no_warn_duplicate_libraries"
-        fi
+        export CGO_LDFLAGS="-Wl,-no_warn_duplicate_libraries"
+        go build -ldflags="-s -w" -o storyshort${{ matrix.binary_extension }}
+
+    - name: Build binary (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        go build -ldflags="-s -w" -o storyshort${{ matrix.binary_extension }}
+
+    - name: Build binary (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
         go build -ldflags="-s -w" -o storyshort${{ matrix.binary_extension }}
 
     - name: Create archive (Linux/macOS)
