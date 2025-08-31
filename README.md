@@ -16,11 +16,6 @@ curl -fsSL https://raw.githubusercontent.com/vadiminshakov/storyshort/main/insta
 iwr -useb https://raw.githubusercontent.com/vadiminshakov/storyshort/main/install.ps1 | iex
 ```
 
-This will automatically:
-- Detect your OS and architecture
-- Download the appropriate binary from the latest GitHub release
-- Install it to your system PATH
-
 ### Manual Installation
 
 1. Download the appropriate binary for your platform from [Releases](https://github.com/vadiminshakov/storyshort/releases)
