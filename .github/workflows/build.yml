@@ -72,18 +72,22 @@ jobs:
         # Устанавливаем Xcode command line tools если нужно
         xcode-select --install 2>/dev/null || true
 
-    - name: Set CGO environment for cross-compilation
+    - name: Set CGO environment for cross-compilation (Linux/macOS)
+      if: matrix.os != 'windows-latest'
       run: |
         if [ "${{ matrix.goos }}" = "linux" ] && [ "${{ matrix.goarch }}" = "arm64" ]; then
           echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-          echo "CGO_ENABLED=1" >> $GITHUB_ENV
-        elif [ "${{ matrix.goos }}" = "windows" ]; then
-          echo "CGO_ENABLED=1" >> $GITHUB_ENV
-        else
-          echo "CGO_ENABLED=1" >> $GITHUB_ENV
         fi
+        echo "CGO_ENABLED=1" >> $GITHUB_ENV
         echo "GOOS=${{ matrix.goos }}" >> $GITHUB_ENV
         echo "GOARCH=${{ matrix.goarch }}" >> $GITHUB_ENV
+
+    - name: Set CGO environment for cross-compilation (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        echo "CGO_ENABLED=1" | Out-File -FilePath $env:GITHUB_ENV -Append
+        echo "GOOS=${{ matrix.goos }}" | Out-File -FilePath $env:GITHUB_ENV -Append
+        echo "GOARCH=${{ matrix.goarch }}" | Out-File -FilePath $env:GITHUB_ENV -Append
 
     - name: Build binary
       run: |
@@ -92,14 +96,15 @@ jobs:
         fi
         go build -ldflags="-s -w" -o storyshort${{ matrix.binary_extension }}
 
-    - name: Create archive
+    - name: Create archive (Linux/macOS)
+      if: matrix.os != 'windows-latest'
       run: |
-        if [ "${{ matrix.archive_ext }}" = ".tar.gz" ]; then
-          tar -czf ${{ matrix.artifact_name }}${{ matrix.archive_ext }} storyshort${{ matrix.binary_extension }}
-        else
-          # Windows zip
-          zip ${{ matrix.artifact_name }}${{ matrix.archive_ext }} storyshort${{ matrix.binary_extension }}
-        fi
+        tar -czf ${{ matrix.artifact_name }}${{ matrix.archive_ext }} storyshort${{ matrix.binary_extension }}
+
+    - name: Create archive (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        Compress-Archive -Path storyshort${{ matrix.binary_extension }} -DestinationPath ${{ matrix.artifact_name }}${{ matrix.archive_ext }}
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
