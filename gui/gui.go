@@ -67,7 +67,7 @@ func NewApp(recorder AudioRecorder, config Config, aiProcessor AIProcessor, save
 	
 	window := myApp.NewWindow("StoryShort Recorder")
 	window.SetIcon(ResourceIconSvg)
-	window.Resize(fyne.NewSize(320, 240))
+	window.Resize(fyne.NewSize(320, 500))
 	window.CenterOnScreen()
 	
 	return &App{
