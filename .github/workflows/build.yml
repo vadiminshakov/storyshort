@@ -20,12 +20,6 @@ jobs:
             artifact_name: storyshort_linux_amd64
             archive_ext: .tar.gz
             binary_extension: ""
-          - os: ubuntu-latest
-            goos: linux
-            goarch: arm64
-            artifact_name: storyshort_linux_arm64
-            archive_ext: .tar.gz
-            binary_extension: ""
           - os: windows-latest
             goos: windows
             goarch: amd64
@@ -63,14 +57,7 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get update
-        sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross
         sudo apt-get install -y libgl1-mesa-dev xorg-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
-        # Install ARM64 cross-compilation libraries
-        if [ "${{ matrix.goarch }}" = "arm64" ]; then
-          sudo apt-get install -y libgl1-mesa-dev:arm64 libx11-dev:arm64 libxrandr-dev:arm64 libxinerama-dev:arm64 libxcursor-dev:arm64 libxi-dev:arm64
-          sudo dpkg --add-architecture arm64
-          sudo apt-get update
-        fi
 
     - name: Install macOS dependencies
       if: matrix.os == 'macos-latest'
@@ -81,9 +68,6 @@ jobs:
     - name: Set CGO environment for cross-compilation (Linux/macOS)
       if: matrix.os != 'windows-latest'
       run: |
-        if [ "${{ matrix.goos }}" = "linux" ] && [ "${{ matrix.goarch }}" = "arm64" ]; then
-          echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-        fi
         echo "CGO_ENABLED=1" >> $GITHUB_ENV
         echo "GOOS=${{ matrix.goos }}" >> $GITHUB_ENV
         echo "GOARCH=${{ matrix.goarch }}" >> $GITHUB_ENV
@@ -141,7 +125,6 @@ jobs:
       with:
         files: |
           storyshort_linux_amd64/storyshort_linux_amd64.tar.gz
-          storyshort_linux_arm64/storyshort_linux_arm64.tar.gz
           storyshort_windows_amd64/storyshort_windows_amd64.zip
           storyshort_darwin_amd64/storyshort_darwin_amd64.tar.gz
           storyshort_darwin_arm64/storyshort_darwin_arm64.tar.gz
