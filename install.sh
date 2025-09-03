@@ -8,10 +8,9 @@ BINARY_NAME="storyshort"
 # Set install directory based on OS
 case "$(uname -s)" in
     Darwin)
-        # macOS - create app bundle in user Applications
-        INSTALL_DIR="$HOME/Applications"
+        # macOS - create app bundle in system Applications
+        INSTALL_DIR="/Applications"
         APP_BUNDLE="StoryShort.app"
-        mkdir -p "$INSTALL_DIR"
         ;;
     *)
         # Linux and others - use local bin
@@ -119,14 +118,14 @@ download_and_install() {
         echo "Creating macOS app bundle..."
         APP_PATH="$INSTALL_DIR/$APP_BUNDLE"
         
-        mkdir -p "$APP_PATH/Contents/MacOS"
-        mkdir -p "$APP_PATH/Contents/Resources"
+        sudo mkdir -p "$APP_PATH/Contents/MacOS"
+        sudo mkdir -p "$APP_PATH/Contents/Resources"
         
         # Move binary to app bundle
-        mv "$BINARY_NAME" "$APP_PATH/Contents/MacOS/"
+        sudo mv "$BINARY_NAME" "$APP_PATH/Contents/MacOS/"
         
         # Create Info.plist
-        cat > "$APP_PATH/Contents/Info.plist" << EOF
+        sudo tee "$APP_PATH/Contents/Info.plist" > /dev/null << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
