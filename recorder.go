@@ -201,6 +201,19 @@ func installWithCommand(name string, args ...string) error {
 }
 
 func isBrewInstalled() bool {
+	// Try standard locations for Homebrew
+	brewPaths := []string{
+		"/usr/local/bin/brew",     // Intel Macs
+		"/opt/homebrew/bin/brew",  // Apple Silicon Macs
+	}
+	
+	for _, path := range brewPaths {
+		if _, err := os.Stat(path); err == nil {
+			return true
+		}
+	}
+	
+	// Fallback to PATH lookup
 	_, err := exec.LookPath("brew")
 	return err == nil
 }
