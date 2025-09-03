@@ -151,9 +151,7 @@ func installAudioTool() error {
 	switch runtime.GOOS {
 	case "darwin":
 		if !isBrewInstalled() {
-			if err := installBrew(); err != nil {
-				return fmt.Errorf("failed to install Homebrew: %w", err)
-			}
+			return fmt.Errorf("Homebrew is required but not installed. Please install Homebrew first: https://brew.sh")
 		}
 		
 		if err := installWithCommand("brew", "install", "sox"); err != nil {
@@ -207,12 +205,6 @@ func isBrewInstalled() bool {
 	return err == nil
 }
 
-func installBrew() error {
-	cmd := exec.Command("/bin/bash", "-c", `$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)`)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}
 
 func isCommandAvailable(command string) bool {
 	_, err := exec.LookPath(command)
