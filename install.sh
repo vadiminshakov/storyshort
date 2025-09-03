@@ -146,7 +146,7 @@ download_and_install() {
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>LSMinimumSystemVersion</key>
-    <string>10.15</string>
+    <string>10.13</string>
 </dict>
 </plist>
 EOF
