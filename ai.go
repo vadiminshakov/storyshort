@@ -90,6 +90,8 @@ func (p *OpenAIProcessor) transcribeAudio(audioFile, language, model string) (st
 	if language != "auto" {
 		writer.WriteField("language", language)
 	}
+	
+	writer.WriteField("prompt", "Separate speech from different speakers and label each speaker as 'Speaker 1:', 'Speaker 2:', etc.")
 	writer.Close()
 
 	req, err := http.NewRequest("POST", "https://api.openai.com/v1/audio/transcriptions", &requestBody)
@@ -121,17 +123,17 @@ func (p *OpenAIProcessor) transcribeAudio(audioFile, language, model string) (st
 }
 
 func (p *OpenAIProcessor) generateSummary(transcript string) (summary, title string, err error) {
-	prompt := fmt.Sprintf(`Проанализируй следующую транскрипцию встречи и выдели:
-1. Главную тему/идею встречи (для названия файла)
-2. Ключевые тезисы и решения
+	prompt := fmt.Sprintf(`Analyze the following meeting transcription and extract:
+1. Main topic/idea of the meeting (for file naming)
+2. Key points and decisions
 
-Транскрипция:
+Transcription:
 %s
 
-Ответ должен быть в формате JSON:
+Response should be in JSON format:
 {
-  "title": "краткое название главной темы встречи",
-  "summary": "подробные ключевые тезисы и решения с переносами строк (\\n) для лучшей читаемости"
+  "title": "brief title of the main meeting topic",
+  "summary": "detailed key points and decisions with line breaks (\\n) for better readability"
 }`, transcript)
 
 	requestBody := map[string]any{
