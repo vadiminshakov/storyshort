@@ -11,6 +11,9 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/go-audio/audio"
+	"github.com/go-audio/wav"
 )
 
 type OpenAIProcessor struct {
@@ -68,6 +71,42 @@ func (p *OpenAIProcessor) ProcessAudio(audioFile, outputDir, language, model str
 }
 
 func (p *OpenAIProcessor) transcribeAudio(audioFile, language, model string) (string, error) {
+	fileInfo, err := os.Stat(audioFile)
+	if err != nil {
+		return "", err
+	}
+	
+	const maxFileSize = 25 * 1024 * 1024 // 25MB limit
+	
+	if fileInfo.Size() <= maxFileSize {
+		return p.transcribeAudioChunk(audioFile, language, model)
+	}
+	
+	fmt.Printf("DEBUG: Large audio file detected (%d bytes), chunking required\n", fileInfo.Size())
+	
+	// for large files, we need to split the audio
+	chunks, err := p.splitAudioFile(audioFile)
+	if err != nil {
+		return "", fmt.Errorf("failed to split audio: %w", err)
+	}
+	
+	var transcripts []string
+	for i, chunk := range chunks {
+		fmt.Printf("DEBUG: Transcribing chunk %d/%d\n", i+1, len(chunks))
+		transcript, err := p.transcribeAudioChunk(chunk, language, model)
+		if err != nil {
+			return "", fmt.Errorf("failed to transcribe chunk %d: %w", i+1, err)
+		}
+		transcripts = append(transcripts, transcript)
+		
+		// clean up temporary chunk file
+		os.Remove(chunk)
+	}
+	
+	return strings.Join(transcripts, " "), nil
+}
+
+func (p *OpenAIProcessor) transcribeAudioChunk(audioFile, language, model string) (string, error) {
 	file, err := os.Open(audioFile)
 	if err != nil {
 		return "", err
@@ -111,6 +150,7 @@ func (p *OpenAIProcessor) transcribeAudio(audioFile, language, model string) (st
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
+		fmt.Printf("DEBUG: OpenAI Transcription API Error - Status: %d, Headers: %v, Body: %s\n", resp.StatusCode, resp.Header, string(body))
 		return "", fmt.Errorf("OpenAI API error %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -122,10 +162,148 @@ func (p *OpenAIProcessor) transcribeAudio(audioFile, language, model string) (st
 	return transcription.Text, nil
 }
 
+func (p *OpenAIProcessor) splitAudioFile(audioFile string) ([]string, error) {
+	const chunkDurationMinutes = 3
+	
+	tempDir := filepath.Join(os.TempDir(), "audio_chunks")
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create temp directory: %w", err)
+	}
+	
+	// open and decode the WAV file
+	file, err := os.Open(audioFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open audio file: %w", err)
+	}
+	defer file.Close()
+	
+	decoder := wav.NewDecoder(file)
+	if !decoder.IsValidFile() {
+		return nil, fmt.Errorf("invalid WAV file")
+	}
+	
+	// read audio format info
+	decoder.FwdToPCM()
+	format := decoder.Format()
+	if format == nil {
+		return nil, fmt.Errorf("failed to read audio format")
+	}
+	
+	sampleRate := int(format.SampleRate)
+	channels := int(format.NumChannels)
+	samplesPerChunk := sampleRate * channels * chunkDurationMinutes * 60
+	
+	baseFileName := strings.TrimSuffix(filepath.Base(audioFile), filepath.Ext(audioFile))
+	var chunks []string
+	chunkIndex := 0
+	
+	for {
+		// read chunk of samples
+		intBuf := &audio.IntBuffer{
+			Data:           make([]int, samplesPerChunk),
+			Format:         format,
+			SourceBitDepth: 16,
+		}
+		
+		n, err := decoder.PCMBuffer(intBuf)
+		if err != nil || n == 0 {
+			break
+		}
+		
+		// trim buffer to actual samples read
+		intBuf.Data = intBuf.Data[:n]
+		
+		// create output file for this chunk
+		outputFile := filepath.Join(tempDir, fmt.Sprintf("%s_chunk_%d.wav", baseFileName, chunkIndex))
+		outFile, err := os.Create(outputFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create chunk file: %w", err)
+		}
+		
+		// encode chunk as WAV
+		encoder := wav.NewEncoder(outFile, sampleRate, 16, channels, 1)
+		if err := encoder.Write(intBuf); err != nil {
+			outFile.Close()
+			return nil, fmt.Errorf("failed to write chunk: %w", err)
+		}
+		
+		encoder.Close()
+		outFile.Close()
+		
+		chunks = append(chunks, outputFile)
+		chunkIndex++
+	}
+	
+	if len(chunks) == 0 {
+		return nil, fmt.Errorf("no audio chunks created - file may be empty")
+	}
+	
+	return chunks, nil
+}
+
 func (p *OpenAIProcessor) generateSummary(transcript string) (summary, title string, err error) {
+	// check if transcript is too long and chunk if necessary
+	const maxChunkSize = 8000
+	
+	if len(transcript) <= maxChunkSize {
+		return p.generateSummaryChunk(transcript)
+	}
+	
+	// split transcript into chunks
+	chunks := p.chunkTranscript(transcript, maxChunkSize)
+	
+	var summaries []string
+	var finalTitle string
+	
+	for i, chunk := range chunks {
+		chunkSummary, chunkTitle, err := p.generateSummaryChunk(chunk)
+		if err != nil {
+			return "", "", fmt.Errorf("failed to process chunk %d: %w", i+1, err)
+		}
+		
+		summaries = append(summaries, chunkSummary)
+		if finalTitle == "" {
+			finalTitle = chunkTitle
+		}
+	}
+	
+	combinedSummary := strings.Join(summaries, "\n\n")
+	
+	return combinedSummary, finalTitle, nil
+}
+
+func (p *OpenAIProcessor) chunkTranscript(transcript string, maxSize int) []string {
+	if len(transcript) <= maxSize {
+		return []string{transcript}
+	}
+	
+	var chunks []string
+	sentences := strings.Split(transcript, ". ")
+	
+	currentChunk := ""
+	for _, sentence := range sentences {
+		testChunk := currentChunk + sentence + ". "
+		if len(testChunk) > maxSize && currentChunk != "" {
+			chunks = append(chunks, strings.TrimSpace(currentChunk))
+			currentChunk = sentence + ". "
+		} else {
+			currentChunk = testChunk
+		}
+	}
+	
+	if currentChunk != "" {
+		chunks = append(chunks, strings.TrimSpace(currentChunk))
+	}
+	
+	return chunks
+}
+
+func (p *OpenAIProcessor) generateSummaryChunk(transcript string) (summary, title string, err error) {
 	prompt := fmt.Sprintf(`Analyze the following meeting transcription and extract:
 1. Main topic/idea of the meeting (for file naming)
 2. Key points and decisions
+
+IMPORTANT: Generate the summary in the SAME LANGUAGE as the transcription.
 
 Transcription:
 %s
@@ -141,7 +319,7 @@ Response should be in JSON format:
 		"messages": []map[string]string{
 			{"role": "user", "content": prompt},
 		},
-		"max_tokens": 1000,
+		"max_tokens": 6000,
 		"temperature": 0.3,
 	}
 
