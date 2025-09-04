@@ -154,9 +154,13 @@ func installAudioTool() error {
 			return fmt.Errorf("Homebrew is required but not installed. Please install Homebrew first: https://brew.sh")
 		}
 		
-		if err := installWithCommand("brew", "install", "sox"); err != nil {
+		brewPath := getBrewPath()
+		if brewPath == "" {
+			return fmt.Errorf("Homebrew not found")
+		}
+		if err := installWithCommand(brewPath, "install", "sox"); err != nil {
 			log.Println("Failed to install sox, trying ffmpeg...")
-			return installWithCommand("brew", "install", "ffmpeg")
+			return installWithCommand(brewPath, "install", "ffmpeg")
 		}
 		return nil
 		
@@ -200,22 +204,24 @@ func installWithCommand(name string, args ...string) error {
 	return cmd.Run()
 }
 
-func isBrewInstalled() bool {
+func getBrewPath() string {
 	// Try standard locations for Homebrew
 	brewPaths := []string{
-		"/usr/local/bin/brew",     // Intel Macs
 		"/opt/homebrew/bin/brew",  // Apple Silicon Macs
+		"/usr/local/bin/brew",     // Intel Macs
 	}
 	
 	for _, path := range brewPaths {
 		if _, err := os.Stat(path); err == nil {
-			return true
+			return path
 		}
 	}
 	
-	// Fallback to PATH lookup
-	_, err := exec.LookPath("brew")
-	return err == nil
+	return ""
+}
+
+func isBrewInstalled() bool {
+	return getBrewPath() != ""
 }
 
 
