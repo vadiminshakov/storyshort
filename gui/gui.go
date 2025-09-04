@@ -260,7 +260,7 @@ func (g *App) updateStats() {
 }
 
 func (g *App) processRecording() {
-	tempDir := "temp_recording"
+	tempDir := filepath.Join(os.TempDir(), "temp_recording")
 	if err := os.MkdirAll(tempDir, 0755); err != nil {
 		fyne.Do(func() {
 			g.showError("Temp Directory Creation Error", err)
