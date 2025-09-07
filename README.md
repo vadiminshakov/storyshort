@@ -11,11 +11,6 @@ A simple GUI application for recording audio and generating AI-powered meeting s
 curl -fsSL https://raw.githubusercontent.com/vadiminshakov/storyshort/main/install.sh | bash
 ```
 
-**Windows:**
-```powershell
-iwr -useb https://raw.githubusercontent.com/vadiminshakov/storyshort/main/install.ps1 | iex
-```
-
 ### Manual Installation
 
 1. Download the appropriate binary for your platform from [Releases](https://github.com/vadiminshakov/storyshort/releases)

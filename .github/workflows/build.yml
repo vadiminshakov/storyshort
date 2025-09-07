@@ -24,12 +24,6 @@ jobs:
             artifact_name: storyshort_linux_amd64
             archive_ext: .tar.gz
             binary_extension: ""
-          - os: windows-latest
-            goos: windows
-            goarch: amd64
-            artifact_name: storyshort_windows_amd64
-            archive_ext: .zip
-            binary_extension: .exe
           - os: macos-latest
             goos: darwin
             goarch: amd64
@@ -69,19 +63,11 @@ jobs:
         # Устанавливаем Xcode command line tools если нужно
         xcode-select --install 2>/dev/null || true
 
-    - name: Set CGO environment for cross-compilation (Linux/macOS)
-      if: matrix.os != 'windows-latest'
+    - name: Set CGO environment for cross-compilation
       run: |
         echo "CGO_ENABLED=1" >> $GITHUB_ENV
         echo "GOOS=${{ matrix.goos }}" >> $GITHUB_ENV
         echo "GOARCH=${{ matrix.goarch }}" >> $GITHUB_ENV
-
-    - name: Set CGO environment for cross-compilation (Windows)
-      if: matrix.os == 'windows-latest'
-      run: |
-        echo "CGO_ENABLED=1" | Out-File -FilePath $env:GITHUB_ENV -Append
-        echo "GOOS=${{ matrix.goos }}" | Out-File -FilePath $env:GITHUB_ENV -Append
-        echo "GOARCH=${{ matrix.goarch }}" | Out-File -FilePath $env:GITHUB_ENV -Append
 
     - name: Build binary (macOS)
       if: matrix.os == 'macos-latest'
@@ -94,21 +80,9 @@ jobs:
       run: |
         go build -ldflags="-s -w" -o storyshort${{ matrix.binary_extension }}
 
-    - name: Build binary (Windows)
-      if: matrix.os == 'windows-latest'
-      shell: pwsh
-      run: |
-        go build -ldflags="-s -w" -o storyshort${{ matrix.binary_extension }}
-
-    - name: Create archive (Linux/macOS)
-      if: matrix.os != 'windows-latest'
+    - name: Create archive
       run: |
         tar -czf ${{ matrix.artifact_name }}${{ matrix.archive_ext }} storyshort${{ matrix.binary_extension }}
-
-    - name: Create archive (Windows)
-      if: matrix.os == 'windows-latest'
-      run: |
-        Compress-Archive -Path storyshort${{ matrix.binary_extension }} -DestinationPath ${{ matrix.artifact_name }}${{ matrix.archive_ext }}
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
@@ -133,7 +107,6 @@ jobs:
         prerelease: false
         files: |
           storyshort_linux_amd64/storyshort_linux_amd64.tar.gz
-          storyshort_windows_amd64/storyshort_windows_amd64.zip
           storyshort_darwin_amd64/storyshort_darwin_amd64.tar.gz
           storyshort_darwin_arm64/storyshort_darwin_arm64.tar.gz
       env:
