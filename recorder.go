@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/youpy/go-wav"
@@ -134,7 +135,13 @@ func (ar *AudioRecorder) SaveAudio(sessionDir string) (string, error) {
 		return "", err
 	}
 
-	return filePath, nil
+	compressedPath, err := ar.compressAudio(filePath)
+	if err != nil {
+		fmt.Printf("Warning: compression failed, using original file: %v\n", err)
+		return filePath, nil
+	}
+
+	return compressedPath, nil
 }
 
 func isAudioToolAvailable() bool {
@@ -189,9 +196,6 @@ func installAudioTool() error {
 		}
 		return fmt.Errorf("unsupported Linux distribution")
 		
-	case "windows":
-		return fmt.Errorf("automatic installation on Windows not supported. Please install sox or ffmpeg manually")
-		
 	default:
 		return fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
 	}
@@ -224,6 +228,44 @@ func isBrewInstalled() bool {
 	return getBrewPath() != ""
 }
 
+
+func (ar *AudioRecorder) compressAudio(inputPath string) (string, error) {
+	dir := filepath.Dir(inputPath)
+	baseName := strings.TrimSuffix(filepath.Base(inputPath), filepath.Ext(inputPath))
+	compressedPath := filepath.Join(dir, baseName+"_compressed.mp3")
+
+	var cmd *exec.Cmd
+	if _, err := exec.LookPath("ffmpeg"); err == nil {
+		cmd = exec.Command("ffmpeg", "-i", inputPath, "-codec:a", "libmp3lame", "-b:a", "64k", "-ac", "1", "-ar", "16000", "-y", compressedPath)
+	} else if _, err := exec.LookPath("sox"); err == nil {
+		cmd = exec.Command("sox", inputPath, "-C", "64", "-r", "16000", "-c", "1", compressedPath)
+	} else {
+		return "", fmt.Errorf("no compression tool available (ffmpeg or sox required)")
+	}
+
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("compression failed: %w", err)
+	}
+
+	compressedInfo, err := os.Stat(compressedPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to stat compressed file: %w", err)
+	}
+
+	originalInfo, err := os.Stat(inputPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to stat original file: %w", err)
+	}
+
+	compressionRatio := float64(originalInfo.Size()) / float64(compressedInfo.Size())
+	fmt.Printf("Audio compressed: %.1f MB -> %.1f MB (%.1fx reduction)\n", 
+		float64(originalInfo.Size())/1024/1024, 
+		float64(compressedInfo.Size())/1024/1024, 
+		compressionRatio)
+
+	os.Remove(inputPath)
+	return compressedPath, nil
+}
 
 func isCommandAvailable(command string) bool {
 	_, err := exec.LookPath(command)
